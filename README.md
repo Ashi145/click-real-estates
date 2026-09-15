@@ -244,7 +244,14 @@ See [API Documentation](docs/API.md) for complete details.
 
 ## 🚀 Deployment
 
-### Vercel (Recommended)
+### GitHub Pages (Automatic via GitHub Actions)
+
+The repository includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically builds and deploys the static export to GitHub Pages:
+1. Merge your branch/PR into `main`.
+2. In GitHub repository settings: **Settings** > **Pages** > **Build and deployment** > Set **Source** to **GitHub Actions**.
+3. The site will be published at `https://ashi145.github.io/click-real-estates/`.
+
+### Vercel (Alternative for Full-Stack / Node.js)
 
 1. Push your code to GitHub
 2. Import project in Vercel

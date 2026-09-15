@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      providers: providers.map((p) => ({
+      providers: providers.map((p: any) => ({
         ...p,
         activeListings: p._count.properties,
       })),
