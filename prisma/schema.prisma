@@ -1,0 +1,596 @@
+// CLICK Real Estate Connectors - Database Schema
+// Uganda's Property Connection Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// AUTHENTICATION & USERS
+// ============================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  phone         String?
+  passwordHash  String
+  firstName     String
+  lastName      String
+  avatar        String?
+  role          String    @default("BUYER") // BUYER, OWNER, BROKER, AGENT, AGENCY, COMPANY, DEVELOPER, LANDLORD, PROPERTY_MANAGER, ADMIN, SUPER_ADMIN
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  emailVerified DateTime?
+  phoneVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  provider      Provider?
+  favorites     Favorite[]
+  savedSearches SavedSearch[]
+  inquiries     Inquiry[]      @relation("BuyerInquiries")
+  reviews       Review[]       @relation("ReviewAuthor")
+  notifications Notification[]
+  reports       Report[]       @relation("ReportAuthor")
+  messages      Message[]      @relation("MessageSender")
+  sessions      Session[]
+  propertyViews PropertyView[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================================
+// PROVIDERS (Brokers, Agents, Agencies, Companies, etc.)
+// ============================================================
+
+model Provider {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  providerType    String   // INDIVIDUAL_OWNER, BROKER, AGENT, AGENCY, COMPANY, DEVELOPER, LANDLORD, PROPERTY_MANAGER
+  businessName    String?
+  slug            String   @unique
+  description     String?
+  logo            String?
+  coverImage      String?
+  website         String?
+  address         String?
+  city            String?
+  district        String?
+  region          String?
+  areasServed     String?  // JSON array of areas
+  categories      String?  // JSON array of categories
+  verificationStatus String @default("PENDING") // PENDING, UNDER_REVIEW, VERIFIED, REJECTED, SUSPENDED
+  verificationDate DateTime?
+  verifiedBy      String?
+  verificationNotes String?
+  rating          Float    @default(0)
+  reviewCount     Int      @default(0)
+  totalListings   Int      @default(0)
+  activeListings  Int      @default(0)
+  responseRate    Float    @default(0)
+  socialLinks     String?  // JSON object
+  contactPreferences String? // JSON object
+  isFeatured      Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  properties Property[]
+  leads      Lead[]
+  reviews    Review[]   @relation("ReviewTarget")
+  reports    Report[]   @relation("ReportTarget")
+  promotions Promotion[]
+
+  @@index([providerType])
+  @@index([verificationStatus])
+  @@index([city, district])
+  @@index([slug])
+}
+
+// ============================================================
+// PROPERTIES
+// ============================================================
+
+model Property {
+  id            String   @id @default(cuid())
+  providerId    String
+  title         String
+  slug          String   @unique
+  description   String?
+  propertyType  String   // HOUSE, APARTMENT, LAND, COMMERCIAL, OFFICE, WAREHOUSE, FARM, LUXURY, RENTAL
+  listingType   String   // SALE, RENT, LEASE
+  price         Float
+  currency      String   @default("UGX")
+  pricePerUnit  Float?
+  priceNegotiable Boolean @default(false)
+
+  // Location
+  latitude      Float?
+  longitude     Float?
+  address       String?
+  area          String?
+  city          String?
+  district      String?
+  region        String?
+  country       String   @default("Uganda")
+
+  // Property Details
+  bedrooms      Int?
+  bathrooms     Int?
+  toilets       Int?
+  parkingSpaces Int?
+  landSize      Float?   // in acres
+  landSizeUnit  String?  // ACRES, SQFT, SQM, HECTARES
+  buildingSize  Float?   // in sqft
+  buildingSizeUnit String?
+  yearBuilt     Int?
+  floors        Int?
+  furnishing    String?  // FURNISHED, UNFURNISHED, PARTIALLY_FURNISHED
+  condition     String?  // NEW, RENOVATED, GOOD, FAIR, NEEDS_RENOVATION
+
+  // Media
+  images        String?  // JSON array of image URLs
+  videos        String?  // JSON array of video URLs
+  virtualTour   String?
+  primaryImage  String?
+
+  // Features & Amenities
+  features      String?  // JSON array
+  amenities     String?  // JSON array
+  nearbyPlaces  String?  // JSON array
+
+  // Status
+  status        String   @default("DRAFT") // DRAFT, PENDING, ACTIVE, SOLD, RENTED, EXPIRED, SUSPENDED, ARCHIVED
+  isFeatured    Boolean  @default(false)
+  isPremium     Boolean  @default(false)
+  isVerified    Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  viewCount     Int      @default(0)
+  saveCount     Int      @default(0)
+  inquiryCount  Int      @default(0)
+
+  // Timestamps
+  publishedAt   DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  provider      Provider       @relation(fields: [providerId], references: [id])
+  favorites     Favorite[]
+  inquiries     Inquiry[]
+  views         PropertyView[]
+  comparisons   ComparisonProperty[]
+  reports       Report[]       @relation("ReportProperty")
+  promotions    Promotion[]
+
+  @@index([propertyType])
+  @@index([listingType])
+  @@index([status])
+  @@index([price])
+  @@index([city, district])
+  @@index([latitude, longitude])
+  @@index([providerId])
+  @@index([slug])
+  @@index([isFeatured, status])
+}
+
+// ============================================================
+// FAVORITES / SAVED PROPERTIES
+// ============================================================
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  propertyId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])
+}
+
+model SavedSearch {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  filters   String   // JSON object with search criteria
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// PROPERTY VIEWS & ANALYTICS
+// ============================================================
+
+model PropertyView {
+  id         String   @id @default(cuid())
+  propertyId String
+  userId     String?
+  ipAddress  String?
+  userAgent  String?
+  referrer   String?
+  createdAt  DateTime @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+// ============================================================
+// INQUIRIES & LEADS
+// ============================================================
+
+model Inquiry {
+  id           String   @id @default(cuid())
+  propertyId   String
+  buyerId      String
+  providerId   String
+  message      String?
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  status       String   @default("NEW") // NEW, CONTACTED, VIEWING, NEGOTIATION, SUCCESSFUL, CLOSED, LOST
+  source       String   @default("WEBSITE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+  buyer    User     @relation("BuyerInquiries", fields: [buyerId], references: [id])
+  provider Provider @relation(fields: [providerId], references: [id])
+  leads    Lead[]
+
+  @@index([status])
+  @@index([providerId])
+}
+
+model Lead {
+  id           String   @id @default(cuid())
+  inquiryId    String
+  providerId   String
+  status       String   @default("NEW") // NEW, CONTACTED, VIEWING, NEGOTIATION, SUCCESSFUL, CLOSED, LOST
+  notes        String?
+  followUpDate DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  inquiry  Inquiry  @relation(fields: [inquiryId], references: [id])
+  provider Provider @relation(fields: [providerId], references: [id])
+}
+
+// ============================================================
+// CONNECTIONS & CONTACT ACCESS
+// ============================================================
+
+model ContactAccess {
+  id           String   @id @default(cuid())
+  userId       String
+  propertyId   String
+  providerId   String
+  accessType   String   // FREE, PAID, SUBSCRIPTION
+  paymentId    String?
+  contactInfo  String?  // JSON with authorized contact details
+  expiresAt    DateTime?
+  createdAt    DateTime @default(now())
+
+  @@unique([userId, propertyId])
+}
+
+// ============================================================
+// PAYMENTS & COMMISSIONS
+// ============================================================
+
+model Payment {
+  id              String   @id @default(cuid())
+  userId          String
+  amount          Float
+  currency        String   @default("UGX")
+  type            String   // CONNECTION_FEE, MARKETING, SUBSCRIPTION, COMMISSION
+  status          String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED, REFUNDED
+  reference       String   @unique
+  provider        String?  // Payment provider name
+  providerTxId    String?
+  metadata        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  commission Commission?
+
+  @@index([status])
+  @@index([type])
+}
+
+model Commission {
+  id            String   @id @default(cuid())
+  paymentId     String
+  providerId    String
+  amount        Float
+  currency      String   @default("UGX")
+  percentage    Float?
+  type          String   // CONNECTION, MARKETING, SUBSCRIPTION
+  status        String   @default("PENDING") // PENDING, APPROVED, PAID
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  payment  Payment  @relation(fields: [paymentId], references: [id])
+  provider Provider @relation(fields: [providerId], references: [id])
+}
+
+// ============================================================
+// MARKETING & PROMOTIONS
+// ============================================================
+
+model MarketingPackage {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // FEATURED, PREMIUM, HOMEPAGE_SPOTLIGHT, DISTRICT_SPOTLIGHT, SEARCH_BOOST, SOCIAL
+  price       Float
+  currency    String   @default("UGX")
+  duration    Int      // days
+  features    String?  // JSON array
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  promotions Promotion[]
+}
+
+model Promotion {
+  id                String   @id @default(cuid())
+  propertyId        String?
+  providerId        String?
+  packageId         String
+  startDate         DateTime
+  endDate           DateTime
+  status            String   @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED
+  impressions       Int      @default(0)
+  clicks            Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  property Property?        @relation(fields: [propertyId], references: [id])
+  provider Provider?        @relation(fields: [providerId], references: [id])
+  package  MarketingPackage @relation(fields: [packageId], references: [id])
+}
+
+// ============================================================
+// REVIEWS & RATINGS
+// ============================================================
+
+model Review {
+  id         String   @id @default(cuid())
+  authorId   String
+  targetId   String
+  targetType String   // PROVIDER, PROPERTY
+  rating     Int      // 1-5
+  title      String?
+  content    String?
+  isVerified Boolean  @default(false)
+  isPublic   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  author User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  target Provider @relation("ReviewTarget", fields: [targetId], references: [id])
+
+  @@index([targetId, targetType])
+}
+
+// ============================================================
+// REPORTS & FLAGS
+// ============================================================
+
+model Report {
+  id           String   @id @default(cuid())
+  reporterId   String
+  propertyId   String?
+  providerId   String?
+  reason       String   // SUSPECTED_SCAM, FALSE_INFO, DUPLICATE, WRONG_LOCATION, FAKE_PHOTOS, SUSPICIOUS_PAYMENT, OTHER
+  description  String?
+  status       String   @default("PENDING") // PENDING, UNDER_REVIEW, RESOLVED, DISMISSED
+  reviewedBy   String?
+  reviewNotes  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reporter User      @relation("ReportAuthor", fields: [reporterId], references: [id])
+  property Property? @relation("ReportProperty", fields: [propertyId], references: [id])
+  provider Provider? @relation("ReportTarget", fields: [providerId], references: [id])
+}
+
+// ============================================================
+// COMPARISONS
+// ============================================================
+
+model Comparison {
+  id        String   @id @default(cuid())
+  userId    String?
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  properties ComparisonProperty[]
+}
+
+model ComparisonProperty {
+  id           String @id @default(cuid())
+  comparisonId String
+  propertyId   String
+
+  comparison Comparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+  property   Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([comparisonId, propertyId])
+}
+
+// ============================================================
+// MESSAGING
+// ============================================================
+
+model Conversation {
+  id          String   @id @default(cuid())
+  propertyId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String @id @default(cuid())
+  conversationId String
+  userId         String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("MessageSender", fields: [senderId], references: [id])
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String   // LEAD, PROPERTY_APPROVED, PAYMENT, MESSAGE, SAVED_SEARCH, PROMOTION
+  title      String
+  message    String
+  link       String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+// ============================================================
+// ADMIN & SYSTEM
+// ============================================================
+
+model AdminAction {
+  id          String   @id @default(cuid())
+  adminId     String
+  action      String
+  targetType  String
+  targetId    String
+  details     String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+  type  String @default("STRING") // STRING, NUMBER, BOOLEAN, JSON
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  template  String?
+  status    String   @default("SENT") // SENT, FAILED, BOUNCED
+  error     String?
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+// ============================================================
+// BLOG / GUIDES
+// ============================================================
+
+model BlogPost {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  excerpt     String?
+  content     String
+  coverImage  String?
+  category    String?
+  tags        String?
+  authorName  String?
+  authorImage String?
+  status      String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  publishedAt DateTime?
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([slug])
+}
